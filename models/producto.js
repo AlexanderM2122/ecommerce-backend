@@ -18,7 +18,7 @@ module.exports = (sequelize, DataTypes) => {
       defaultValue: 'Sin título' 
     },
     descripcion: { 
-      type: DataTypes.STRING, 
+      type: DataTypes.TEXT, 
       defaultValue: 'Sin descripcion' 
     },
     precio: { 

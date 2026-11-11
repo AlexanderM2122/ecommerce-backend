@@ -14,7 +14,7 @@ module.exports = {
         defaultValue: 'Sin título' 
       },
       descripcion: { 
-        type: Sequelize.STRING, 
+        type: Sequelize.TEXT, 
         defaultValue: 'Sin descripcion' 
       },
       precio: { 
