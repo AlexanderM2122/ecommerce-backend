@@ -418,19 +418,30 @@
     },
     "/api/auth/": {
       "post": {
-        "description": "",
+        "tags": [
+          "Autenticaci�n"
+        ],
+        "summary": "Iniciar sesi�n",
         "parameters": [
           {
             "name": "body",
             "in": "body",
+            "required": true,
             "schema": {
               "type": "object",
+              "required": [
+                "email",
+                "password"
+              ],
               "properties": {
                 "email": {
-                  "example": "any"
+                  "type": "string",
+                  "format": "email",
+                  "maxLength": 254
                 },
                 "password": {
-                  "example": "any"
+                  "type": "string",
+                  "format": "password"
                 }
               }
             }
@@ -438,35 +449,70 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "Operaci�n completada."
+          },
+          "202": {
+            "description": "Se requiere segundo factor. Env�a reto y codigo a /api/auth/mfa/login.",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "reto": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "400": {
-            "description": "Bad Request"
+            "description": "Datos, c�digo o enlace inv�lidos."
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Credenciales, sesi�n o reto inv�lidos."
+          },
+          "403": {
+            "description": "Correo sin verificar o acceso denegado."
+          },
+          "429": {
+            "description": "Demasiados intentos.",
+            "headers": {
+              "Retry-After": {
+                "type": "integer",
+                "description": "Segundos para volver a intentar."
+              }
+            }
           }
         }
       }
     },
     "/api/auth/registro": {
       "post": {
-        "description": "",
+        "tags": [
+          "Autenticaci�n"
+        ],
+        "summary": "Crear cuenta",
         "parameters": [
           {
             "name": "body",
             "in": "body",
+            "required": true,
             "schema": {
               "type": "object",
+              "required": [
+                "email",
+                "password",
+                "nombre"
+              ],
               "properties": {
                 "email": {
-                  "example": "any"
+                  "type": "string",
+                  "format": "email",
+                  "maxLength": 254
                 },
                 "password": {
-                  "example": "any"
+                  "type": "string",
+                  "format": "password"
                 },
                 "nombre": {
-                  "example": "any"
+                  "type": "string"
                 }
               }
             }
@@ -474,20 +520,484 @@
         ],
         "responses": {
           "201": {
-            "description": "Created"
+            "description": "Cuenta creada. El correo de verificaci�n se env�a en segundo plano."
+          },
+          "400": {
+            "description": "Datos, c�digo o enlace inv�lidos."
+          },
+          "409": {
+            "description": "Conflicto con el estado de la cuenta."
+          },
+          "429": {
+            "description": "Demasiados intentos.",
+            "headers": {
+              "Retry-After": {
+                "type": "integer",
+                "description": "Segundos para volver a intentar."
+              }
+            }
+          },
+          "503": {
+            "description": "Servicio de correo sin configurar."
+          }
+        }
+      }
+    },
+    "/api/auth/reenviar-verificacion": {
+      "post": {
+        "tags": [
+          "Autenticaci�n"
+        ],
+        "summary": "Solicitar verificaci�n de correo",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": [
+                "email"
+              ],
+              "properties": {
+                "email": {
+                  "type": "string",
+                  "format": "email",
+                  "maxLength": 254
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Solicitud recibida."
+          },
+          "400": {
+            "description": "Datos, c�digo o enlace inv�lidos."
+          },
+          "429": {
+            "description": "Demasiados intentos.",
+            "headers": {
+              "Retry-After": {
+                "type": "integer",
+                "description": "Segundos para volver a intentar."
+              }
+            }
+          },
+          "503": {
+            "description": "Servicio de correo sin configurar."
+          }
+        }
+      }
+    },
+    "/api/auth/verificar-correo": {
+      "post": {
+        "tags": [
+          "Autenticaci�n"
+        ],
+        "summary": "Confirmar correo",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": [
+                "token"
+              ],
+              "properties": {
+                "token": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Operaci�n completada."
+          },
+          "400": {
+            "description": "Datos, c�digo o enlace inv�lidos."
+          },
+          "429": {
+            "description": "Demasiados intentos.",
+            "headers": {
+              "Retry-After": {
+                "type": "integer",
+                "description": "Segundos para volver a intentar."
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/recuperar-password": {
+      "post": {
+        "tags": [
+          "Autenticaci�n"
+        ],
+        "summary": "Solicitar recuperaci�n de contrase�a",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": [
+                "email"
+              ],
+              "properties": {
+                "email": {
+                  "type": "string",
+                  "format": "email",
+                  "maxLength": 254
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Solicitud recibida."
+          },
+          "400": {
+            "description": "Datos, c�digo o enlace inv�lidos."
+          },
+          "429": {
+            "description": "Demasiados intentos.",
+            "headers": {
+              "Retry-After": {
+                "type": "integer",
+                "description": "Segundos para volver a intentar."
+              }
+            }
+          },
+          "503": {
+            "description": "Servicio de correo sin configurar."
+          }
+        }
+      }
+    },
+    "/api/auth/restablecer-password": {
+      "post": {
+        "tags": [
+          "Autenticaci�n"
+        ],
+        "summary": "Restablecer contrase�a",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": [
+                "token",
+                "password"
+              ],
+              "properties": {
+                "token": {
+                  "type": "string"
+                },
+                "password": {
+                  "type": "string",
+                  "format": "password"
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Operaci�n completada."
+          },
+          "400": {
+            "description": "Datos, c�digo o enlace inv�lidos."
+          },
+          "429": {
+            "description": "Demasiados intentos.",
+            "headers": {
+              "Retry-After": {
+                "type": "integer",
+                "description": "Segundos para volver a intentar."
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/mfa/login": {
+      "post": {
+        "tags": [
+          "Autenticaci�n"
+        ],
+        "summary": "Completar el segundo factor",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": [
+                "reto",
+                "codigo"
+              ],
+              "properties": {
+                "reto": {
+                  "type": "string"
+                },
+                "codigo": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operaci�n completada."
+          },
+          "400": {
+            "description": "Datos, c�digo o enlace inv�lidos."
+          },
+          "401": {
+            "description": "Credenciales, sesi�n o reto inv�lidos."
+          },
+          "429": {
+            "description": "Demasiados intentos.",
+            "headers": {
+              "Retry-After": {
+                "type": "integer",
+                "description": "Segundos para volver a intentar."
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/mfa": {
+      "get": {
+        "tags": [
+          "Autenticaci�n"
+        ],
+        "summary": "Consultar segundo factor",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operaci�n completada."
+          },
+          "401": {
+            "description": "Credenciales, sesi�n o reto inv�lidos."
+          },
+          "403": {
+            "description": "Correo sin verificar o acceso denegado."
+          }
+        }
+      }
+    },
+    "/api/auth/mfa/preparar": {
+      "post": {
+        "tags": [
+          "Autenticaci�n"
+        ],
+        "summary": "Generar una clave para la app autenticadora",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": [
+                "password"
+              ],
+              "properties": {
+                "password": {
+                  "type": "string",
+                  "format": "password"
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operaci�n completada."
+          },
+          "400": {
+            "description": "Datos, c�digo o enlace inv�lidos."
+          },
+          "401": {
+            "description": "Credenciales, sesi�n o reto inv�lidos."
+          },
+          "403": {
+            "description": "Correo sin verificar o acceso denegado."
+          },
+          "409": {
+            "description": "Conflicto con el estado de la cuenta."
+          },
+          "429": {
+            "description": "Demasiados intentos.",
+            "headers": {
+              "Retry-After": {
+                "type": "integer",
+                "description": "Segundos para volver a intentar."
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/mfa/activar": {
+      "post": {
+        "tags": [
+          "Autenticaci�n"
+        ],
+        "summary": "Confirmar la activaci�n y recibir c�digos de recuperaci�n",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": [
+                "codigo"
+              ],
+              "properties": {
+                "codigo": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operaci�n completada."
+          },
+          "400": {
+            "description": "Datos, c�digo o enlace inv�lidos."
+          },
+          "401": {
+            "description": "Credenciales, sesi�n o reto inv�lidos."
+          },
+          "403": {
+            "description": "Correo sin verificar o acceso denegado."
+          },
+          "429": {
+            "description": "Demasiados intentos.",
+            "headers": {
+              "Retry-After": {
+                "type": "integer",
+                "description": "Segundos para volver a intentar."
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/mfa/desactivar": {
+      "post": {
+        "tags": [
+          "Autenticaci�n"
+        ],
+        "summary": "Desactivar segundo factor",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": [
+                "password",
+                "codigo"
+              ],
+              "properties": {
+                "password": {
+                  "type": "string",
+                  "format": "password"
+                },
+                "codigo": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operaci�n completada."
+          },
+          "400": {
+            "description": "Datos, c�digo o enlace inv�lidos."
+          },
+          "401": {
+            "description": "Credenciales, sesi�n o reto inv�lidos."
+          },
+          "403": {
+            "description": "Correo sin verificar o acceso denegado."
+          },
+          "409": {
+            "description": "Conflicto con el estado de la cuenta."
+          },
+          "429": {
+            "description": "Demasiados intentos.",
+            "headers": {
+              "Retry-After": {
+                "type": "integer",
+                "description": "Segundos para volver a intentar."
+              }
+            }
           }
         }
       }
     },
     "/api/auth/tiempo": {
       "get": {
-        "description": "",
+        "tags": [
+          "Autenticaci�n"
+        ],
+        "summary": "Consultar tiempo de sesi�n",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "Operaci�n completada."
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Credenciales, sesi�n o reto inv�lidos."
+          },
+          "403": {
+            "description": "Correo sin verificar o acceso denegado."
           }
         }
       }
@@ -725,6 +1235,13 @@
           }
         }
       }
+    }
+  },
+  "securityDefinitions": {
+    "BearerAuth": {
+      "type": "apiKey",
+      "name": "Authorization",
+      "in": "header"
     }
   }
 }

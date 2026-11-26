@@ -2,6 +2,7 @@ const jwt = require('jsonwebtoken')
 const jwtSecret = process.env.JWT_SECRET
 const ClaimTypes = require('../config/claimtypes')
 const { GeneraToken } = require('../services/jwttoken.service')
+const { usuario, rol: roleModel } = require('../models')
 
 const Authorize = (rol) => {
     return async (req, res, next) => {
@@ -21,24 +22,34 @@ const Authorize = (rol) => {
                 audience: 'ClientesFeiJWT'
             })
 
+            const account = await usuario.findOne({
+                where: { email: decodedToken[ClaimTypes.Name] },
+                attributes: ['id', 'email', 'nombre', 'authVersion', 'correoVerificadoEn', 'mfaSecreto'],
+                include: { model: roleModel, attributes: ['nombre'] }
+            })
+            if (!account?.correoVerificadoEn || account.authVersion !== (decodedToken.av ?? null)) {
+                return next(Object.assign(new Error('La sesi�n venci�. Vuelve a ingresar.'), { statusCode: 401 }))
+            }
             const rolesPermitidos = rol.split(',').map(r => r.trim())
 
-            if (!rolesPermitidos.includes(decodedToken[ClaimTypes.Role])) {
-                const error = new Error('No tiene permisos para realizar esta acción.')
+            if (!rolesPermitidos.includes(account.rol.nombre) || account.rol.nombre !== decodedToken[ClaimTypes.Role]) {
+                const error = new Error('No tiene permisos para realizar esta acci�n.')
                 error.statusCode = 403
                 return next(error)
             }
 
             req.decodedToken = decodedToken
+            req.authAccount = account
 
             const minutosRestantes =
                 (decodedToken.exp - Math.floor(Date.now() / 1000)) / 60;
 
             if (minutosRestantes < 5) {
                 const nuevoToken = GeneraToken(
-                    decodedToken[ClaimTypes.Name],
-                    decodedToken[ClaimTypes.GivenName],
-                    decodedToken[ClaimTypes.Role]
+                    account.email,
+                    account.nombre,
+                    account.rol.nombre,
+                    account.authVersion
                 );
                 res.header('Set-Authorization', nuevoToken)
             }
@@ -52,7 +63,7 @@ const Authorize = (rol) => {
                 error.name === 'NotBeforeError'
             ) {
                 error.statusCode = 401;
-                error.message = 'Token inválido o expirado.'
+                error.message = 'Token inv�lido o expirado.'
             }
 
             next(error)

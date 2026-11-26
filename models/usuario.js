@@ -30,6 +30,20 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.BOOLEAN, 
       defaultValue: false 
     },
+    correoVerificadoEn: DataTypes.DATE,
+    authVersion: DataTypes.UUID,
+    verificacionHash: DataTypes.STRING(64),
+    verificacionVence: DataTypes.DATE,
+    recuperacionHash: DataTypes.STRING(64),
+    recuperacionVence: DataTypes.DATE,
+    mfaSecreto: DataTypes.STRING,
+    mfaPendiente: DataTypes.STRING,
+    mfaPendienteVence: DataTypes.DATE,
+    mfaUltimoPaso: DataTypes.INTEGER,
+    mfaRecuperacion: DataTypes.JSON,
+    mfaRetoHash: DataTypes.STRING(64),
+    mfaRetoVence: DataTypes.DATE,
+    mfaRetoIntentos: DataTypes.INTEGER,
     rolid: { 
       type: DataTypes.UUID, 
       allowNull: false 
