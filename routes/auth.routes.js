@@ -4,6 +4,8 @@ const Authorize = require('../middlewares/auth.middleware');
 
 router.post('/', auth.login);
 
+router.post('/registro', auth.registroValidator, auth.registro);
+
 router.get('/tiempo', Authorize('Usuario,Administrador'), auth.tiempo);
 
 module.exports = router;
