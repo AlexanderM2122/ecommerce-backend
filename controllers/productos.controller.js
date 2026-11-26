@@ -5,9 +5,31 @@ const Op = Sequelize.Op
 let self = {}
 
 self.productoValidator = [
-    body('titulo', 'El campo {0} es obligatorio').not().isEmpty(),
-    body('descripcion', 'El campo {0} es obligatorio').not().isEmpty(),
-    body('precio', 'El campo {0} es obligatorio').not().isEmpty().isDecimal({force_decimal: false }),
+    body('titulo')
+        .isString()
+        .trim()
+        .notEmpty()
+        .isLength({ min: 2, max: 255 }),
+
+    body('descripcion')
+        .isString()
+        .trim()
+        .notEmpty()
+        .isLength({ min: 5, max: 2000 }),
+
+    body('precio')
+        .custom(value => {
+            if (
+                typeof value !== 'number' &&
+                typeof value !== 'string'
+            ) return false
+
+            const texto = String(value)
+
+            return /^\d+(\.\d{1,2})?$/.test(texto) &&
+                Number(texto) >= 0.01 &&
+                Number(texto) <= 99999999.99
+        })
 ]
 
 self.getAll = async function (req, res, next) {
@@ -66,7 +88,11 @@ self.get = async function (req, res, next) {
 self.create = async function (req, res, next) {
     try {
         const errors = validationResult(req)
-        if (!errors.isEmpty()) throw new Error(JSON.stringify(errors))
+        if (!errors.isEmpty()) {
+            const error = new Error('Los datos proporcionados no son válidos.')
+            error.statusCode = 400
+            throw error
+        }
 
         let data = await producto.create({
             titulo: req.body.titulo,
@@ -82,21 +108,27 @@ self.create = async function (req, res, next) {
     }
 }
 
-
 self.update = async function (req, res, next) {
     try {
         const errors = validationResult(req)
-        if (!errors.isEmpty()) throw new Error(JSON.stringify(errors))
-            let id = req.params.id
-            const body = {
-                titulo: req.body.titulo,
-                descripcion: req.body.descripcion,
-                precio: req.body.precio,
-                archivoid: req.body.archivoid
-            }
 
-            let data = await producto.update(body, {
-                where: { id: id }
+        if (!errors.isEmpty()) {
+            const error = new Error('Los datos proporcionados no son válidos.')
+            error.statusCode = 400
+            throw error
+        }
+
+        let id = req.params.id
+
+        const body = {
+            titulo: req.body.titulo,
+            descripcion: req.body.descripcion,
+            precio: req.body.precio,
+            archivoid: req.body.archivoid
+        }
+
+        let data = await producto.update(body, {
+            where: { id: id }
         })
 
         if (data[0] === 0)
@@ -109,7 +141,6 @@ self.update = async function (req, res, next) {
     }
 }
 
-
 self.delete = async function (req, res, next) {
     try {
         let id = req.params.id;
@@ -121,7 +152,6 @@ self.delete = async function (req, res, next) {
         data = await producto.destroy({ where: { id: id } })
 
         if (data === 1) {
-            // Bitacora
             await req.bitacora("producto.eliminar", id)
             return res.status(204).send()
         }
