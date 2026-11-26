@@ -2,41 +2,36 @@ const { body, validationResult } = require('express-validator')
 const { usuario, rol, Sequelize } = require('../models')
 const bcrypt = require('bcrypt')
 const crypto = require('crypto')
+const {
+    BCRYPT_SALT_ROUNDS,
+    validarEmail,
+    validarNombre,
+    validarPasswordFuerte
+} = require('../services/usuario.rules')
+const validarCampos = require('../middlewares/validarCampos.middleware')
 
 let self = {}
 
-
 self.usuarioCreateValidator = [
-    body('email')
-        .isEmail().withMessage('El correo electrónico no es válido.')
-        .isLength({ max: 255 }).withMessage('El correo es demasiado largo.'),
-
-    body('nombre')
-        .isString().withMessage('El nombre debe ser texto.')
-        .trim()
-        .notEmpty().withMessage('El nombre es obligatorio.')
-        .isLength({ max: 255 }).withMessage('El nombre es demasiado largo.'),
-
-    body('password')
-        .isString().withMessage('La contraseña debe ser texto.')
-        .isLength({ min: 8, max: 72 })
-        .withMessage('La contraseña debe tener entre 8 y 72 caracteres.'),
+    validarEmail,
+    validarNombre,
+    validarPasswordFuerte,
 
     body('rol')
         .isIn(['Administrador', 'Usuario'])
-        .withMessage('El rol no es válido.')
+        .withMessage('El rol no es válido.'),
+    
+    validarCampos
 ]
 
 self.usuarioUpdateValidator = [
-    body('nombre')
-        .isString().withMessage('El nombre debe ser texto.')
-        .trim()
-        .notEmpty().withMessage('El nombre es obligatorio.')
-        .isLength({ max: 255 }).withMessage('El nombre es demasiado largo.'),
+    validarNombre,
 
     body('rol')
         .isIn(['Administrador', 'Usuario'])
-        .withMessage('El rol no es válido.')
+        .withMessage('El rol no es válido.'),
+    
+    validarCampos
 ]
 
 const crearError = (mensaje, statusCode = 400) => {
@@ -104,7 +99,7 @@ self.create = async function (req, res, next) {
         const data = await usuario.create({
             id: crypto.randomUUID(),
             email: req.body.email,
-            passwordhash: await bcrypt.hash(req.body.password, 10),
+            passwordhash: await bcrypt.hash(req.body.password, BCRYPT_SALT_ROUNDS),
             nombre: req.body.nombre,
             rolid: rolusuario.id
         })
