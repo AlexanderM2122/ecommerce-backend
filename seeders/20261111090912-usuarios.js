@@ -8,6 +8,7 @@ module.exports = {
   async up(queryInterface, Sequelize) {
     const AdministradorUUID = crypto.randomUUID();
     const UsuarioUUID = crypto.randomUUID();
+    const correoVerificadoEn = process.env.NODE_ENV === 'development' ? new Date() : null;
 
     await queryInterface.bulkInsert('rol', [
       {
@@ -32,6 +33,7 @@ module.exports = {
         nombre: 'Administrador de prueba',
         rolid: AdministradorUUID,
         protegido: true,
+        correoVerificadoEn,
         createdAt: new Date(),
         updatedAt: new Date()
       },
@@ -42,6 +44,7 @@ module.exports = {
         nombre: 'Usuario de prueba',
         rolid: UsuarioUUID,
         protegido: false,
+        correoVerificadoEn,
         createdAt: new Date(),
         updatedAt: new Date()
       }
