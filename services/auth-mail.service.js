@@ -33,8 +33,14 @@ async function sendAuthCode(email, purpose, code) {
 
     if (gmail) {
         const transport = nodemailer.createTransport({
-            service: 'gmail',
+            host: 'smtp.gmail.com',
+            port: 465,
+            secure: true,
             auth: gmail,
+            tls: {
+                minVersion: 'TLSv1.2',
+                rejectUnauthorized: true
+            },
             connectionTimeout: 7000,
             greetingTimeout: 7000,
             socketTimeout: 10000
