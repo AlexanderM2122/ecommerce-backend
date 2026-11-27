@@ -6,7 +6,7 @@ const bitacoralogger = (req, res, next) => {
     const ip = requestIp.getClientIp(req)
     let email = 'invitado'
 
-    req.bitacora = async (accion, id) => {
+    req.bitacora = async (accion, id, options) => {
         if (req.decodedToken) {
             email = req.decodedToken[ClaimTypes.Name]
         }
@@ -17,7 +17,7 @@ const bitacoralogger = (req, res, next) => {
             ip: ip,
             usuario: email,
             fecha: new Date()
-        })
+        }, options)
     }
 
     next()

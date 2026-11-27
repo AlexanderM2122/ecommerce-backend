@@ -11,11 +11,11 @@ const { clearLoginLimit } = require('../middlewares/auth-rate.middleware')
 const auth = {}
 const dummyHash = bcrypt.hash(crypto.randomBytes(32).toString('hex'), BCRYPT_SALT_ROUNDS)
 const minute = 60_000
-const invalidCode = 'El c�digo es inv�lido, venci� o agot� sus intentos.'
+const invalidCode = 'El c?digo es inv?lido, venci? o agot? sus intentos.'
 const codeTtl = 10 * minute
 const maxCodeAttempts = 5
-const emailResponse = 'Si la cuenta cumple los requisitos, recibir�s un correo con el c�digo.'
-const incorrect = 'Usuario o contrase�a incorrectos.'
+const emailResponse = 'Si la cuenta cumple los requisitos, recibir?s un correo con el c?digo.'
+const incorrect = 'Usuario o contrase?a incorrectos.'
 const purposes = {
     verify: { hash: 'verificacionHash', expiry: 'verificacionVence', attempts: 'verificacionIntentos' },
     reset: { hash: 'recuperacionHash', expiry: 'recuperacionVence', attempts: 'recuperacionIntentos' }
@@ -34,7 +34,7 @@ function hash(value) {
 }
 
 function tokenHash(value) {
-    if (typeof value !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(value)) throw fail(410, 'La autorizaci�n para cambiar la contrase�a venci�. Solicita otro c�digo.')
+    if (typeof value !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(value)) throw fail(410, 'La autorizaci?n para cambiar la contrase?a venci?. Solicita otro c?digo.')
     return hash('password-grant:' + value)
 }
 
@@ -106,10 +106,10 @@ async function deliverCode(email, purpose) {
 }
 
 function queueCode(email, purpose) {
-    // La respuesta p�blica no revela si existe una cuenta que pueda recibir el c�digo.
+    // La respuesta p?blica no revela si existe una cuenta que pueda recibir el c?digo.
     setImmediate(() => {
         deliverCode(email, purpose).catch(error => {
-            console.error('Error al enviar un correo de autenticaci�n:', error.name)
+            console.error('Error al enviar un correo de autenticaci?n:', error.name)
         })
     })
 }
@@ -157,7 +157,7 @@ auth.passwordValidator = [validarPasswordFuerte, validarCampos]
 auth.login = async function (req, res) {
     const { email, password } = req.body || {}
     if (typeof email !== 'string' || !email.trim() || email.length > 254 || !passwordInput(password)) {
-        throw fail(400, 'Debe proporcionar un correo y una contrase�a v�lidos.')
+        throw fail(400, 'Debe proporcionar un correo y una contrase?a v?lidos.')
     }
 
     const found = await usuario.findOne({ where: { email: email.trim().toLowerCase() }, attributes: ['id', 'passwordhash'] })
@@ -193,7 +193,7 @@ auth.registro = async function (req, res) {
     const { email, password, nombre } = req.body
     mail.configuration()
     const accountRole = await rol.findOne({ where: { nombre: 'Usuario' }, attributes: ['id'] })
-    if (!accountRole) throw fail(500, 'Error de configuraci�n de roles en el servidor.')
+    if (!accountRole) throw fail(500, 'Error de configuraci?n de roles en el servidor.')
 
     const account = await usuario.create({
         id: crypto.randomUUID(), email, nombre, rolid: accountRole.id, protegido: false,
@@ -224,21 +224,25 @@ auth.verificarRecuperacion = async function (req, res) {
     res.json(await verifyEmailCode(req.body.email, req.body.codigo, 'reset'))
 }
 
+function resetPasswordState(account, hashPassword) {
+    account.passwordhash = hashPassword
+    account.authVersion = crypto.randomUUID()
+    account.recuperacionHash = null
+    account.recuperacionVence = null
+    account.recuperacionIntentos = null
+    account.mfaPendiente = null
+    account.mfaPendienteVence = null
+    clearChallenge(account)
+}
+
 auth.restablecer = async function (req, res) {
     const digest = tokenHash(req.body?.token)
     const hashPassword = await bcrypt.hash(req.body.password, BCRYPT_SALT_ROUNDS)
     await locked({ recuperacionHash: digest }, async (account, transaction) => {
         if (!account || account.recuperacionVence <= new Date()) {
-            throw fail(410, 'La autorizaci�n para cambiar la contrase�a venci�. Solicita otro c�digo.')
+            throw fail(410, 'La autorizaci?n para cambiar la contrase?a venci?. Solicita otro c?digo.')
         }
-        account.passwordhash = hashPassword
-        account.authVersion = crypto.randomUUID()
-        account.recuperacionHash = null
-        account.recuperacionVence = null
-        account.recuperacionIntentos = null
-        account.mfaPendiente = null
-        account.mfaPendienteVence = null
-        clearChallenge(account)
+        resetPasswordState(account, hashPassword)
         await account.save({ transaction })
     })
     res.sendStatus(204)
@@ -261,7 +265,7 @@ function consumeFactor(account, code) {
 auth.segundoFactor = async function (req, res) {
     const { reto, codigo } = req.body || {}
     if (typeof reto !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(reto)) {
-        throw fail(401, 'El intento de inicio de sesi�n venci�. Vuelve a ingresar.')
+        throw fail(401, 'El intento de inicio de sesi?n venci?. Vuelve a ingresar.')
     }
 
     const result = await locked({ mfaRetoHash: hash(reto) }, async (account, transaction) => {
@@ -281,16 +285,16 @@ auth.segundoFactor = async function (req, res) {
     })
 
     if (!result || result.exhausted) {
-        throw fail(401, 'El intento de inicio de sesi�n venci� o agot� sus intentos. Vuelve a ingresar.')
+        throw fail(401, 'El intento de inicio de sesi?n venci? o agot? sus intentos. Vuelve a ingresar.')
     }
-    if (!result.account) throw fail(400, 'El c�digo es inv�lido o ya fue utilizado.')
+    if (!result.account) throw fail(400, 'El c?digo es inv?lido o ya fue utilizado.')
     return completeLogin(req, res, result.account, result.role)
 }
 
 function withCurrentAccount(req, operation) {
     return locked({ id: req.authAccount.id }, (account, transaction) => {
         if (!account || account.authVersion !== req.authAccount.authVersion || !account.correoVerificadoEn) {
-            throw fail(401, 'La sesi�n venci�. Vuelve a ingresar.')
+            throw fail(401, 'La sesi?n venci?. Vuelve a ingresar.')
         }
         return operation(account, transaction)
     })
@@ -298,8 +302,21 @@ function withCurrentAccount(req, operation) {
 
 async function checkPassword(account, password) {
     if (!passwordInput(password) || !await bcrypt.compare(password, account.passwordhash)) {
-        throw fail(400, 'La contrase�a actual es incorrecta.')
+        throw fail(400, 'La contrase?a actual es incorrecta.')
     }
+}
+
+auth.cambiarPassword = async function (req, res) {
+    const { passwordActual, password } = req.body
+    await withCurrentAccount(req, async (account, transaction) => {
+        await checkPassword(account, passwordActual)
+        if (password === passwordActual) throw fail(400, 'La contrase�a nueva debe ser distinta de la actual.')
+
+        resetPasswordState(account, await bcrypt.hash(password, BCRYPT_SALT_ROUNDS))
+        await account.save({ transaction })
+        await req.bitacora('usuario.cambiarPassword', account.id, { transaction })
+    })
+    res.sendStatus(204)
 }
 
 auth.estadoMfa = (req, res) => {
@@ -308,7 +325,7 @@ auth.estadoMfa = (req, res) => {
 
 auth.prepararMfa = async function (req, res) {
     const secret = await withCurrentAccount(req, async (account, transaction) => {
-        if (account.mfaSecreto) throw fail(409, 'La autenticaci�n multifactor ya est� activa.')
+        if (account.mfaSecreto) throw fail(409, 'La autenticaci?n multifactor ya est? activa.')
         await checkPassword(account, req.body?.password)
 
         const secret = crypto.randomBytes(20)
@@ -323,11 +340,11 @@ auth.prepararMfa = async function (req, res) {
 auth.activarMfa = async function (req, res) {
     const result = await withCurrentAccount(req, async (account, transaction) => {
         if (!account.mfaPendiente || account.mfaPendienteVence <= new Date()) {
-            throw fail(400, 'La configuraci�n venci�. Genera una clave nueva.')
+            throw fail(400, 'La configuraci?n venci?. Genera una clave nueva.')
         }
         const secret = totp.decrypt(account.mfaPendiente, account.id)
         const step = totp.matchingStep(secret, req.body?.codigo, null)
-        if (step === null) throw fail(400, 'El c�digo de la app autenticadora es inv�lido.')
+        if (step === null) throw fail(400, 'El c?digo de la app autenticadora es inv?lido.')
 
         const codes = Array.from({ length: 8 }, () => crypto.randomBytes(8).toString('hex'))
         account.mfaSecreto = account.mfaPendiente
@@ -345,9 +362,9 @@ auth.activarMfa = async function (req, res) {
 
 auth.desactivarMfa = async function (req, res) {
     const result = await withCurrentAccount(req, async (account, transaction) => {
-        if (!account.mfaSecreto) throw fail(409, 'La autenticaci�n multifactor ya est� desactivada.')
+        if (!account.mfaSecreto) throw fail(409, 'La autenticaci?n multifactor ya est? desactivada.')
         await checkPassword(account, req.body?.password)
-        if (!consumeFactor(account, req.body?.codigo)) throw fail(400, 'El c�digo es inv�lido o ya fue utilizado.')
+        if (!consumeFactor(account, req.body?.codigo)) throw fail(400, 'El c?digo es inv?lido o ya fue utilizado.')
 
         account.mfaSecreto = null
         account.mfaUltimoPaso = null
