@@ -29,7 +29,7 @@ function consume(key, maximum, now) {
 }
 
 function accountKey(scope, email) {
-    // La colaci�n de MySQL tambi�n puede considerar iguales distintos acentos.
+    // La colación de MySQL también puede considerar iguales distintos acentos.
     const normalized = email.trim().normalize('NFKD').replace(/\p{M}/gu, '').toLowerCase()
     const hash = crypto.createHash('sha256').update(normalized).digest('hex')
     return scope + ':email:' + hash
@@ -46,7 +46,7 @@ function limit(scope, ipMaximum, emailMaximum) {
         }
         if (!retry) return next()
         res.set('Retry-After', String(retry))
-        return res.status(429).json({ mensaje: 'Demasiados intentos. Int�ntalo m�s tarde.' })
+        return res.status(429).json({ mensaje: 'Demasiados intentos. Inténtalo más tarde.' })
     }
 }
 

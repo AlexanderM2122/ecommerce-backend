@@ -28,12 +28,12 @@ const Authorize = (rol) => {
                 include: { model: roleModel, attributes: ['nombre'] }
             })
             if (!account?.correoVerificadoEn || account.authVersion !== (decodedToken.av ?? null)) {
-                return next(Object.assign(new Error('La sesi�n venci�. Vuelve a ingresar.'), { statusCode: 401 }))
+                return next(Object.assign(new Error('La sesión venció. Vuelve a ingresar.'), { statusCode: 401 }))
             }
             const rolesPermitidos = rol.split(',').map(r => r.trim())
 
             if (!rolesPermitidos.includes(account.rol.nombre) || account.rol.nombre !== decodedToken[ClaimTypes.Role]) {
-                const error = new Error('No tiene permisos para realizar esta acci�n.')
+                const error = new Error('No tiene permisos para realizar esta acción.')
                 error.statusCode = 403
                 return next(error)
             }
@@ -63,7 +63,7 @@ const Authorize = (rol) => {
                 error.name === 'NotBeforeError'
             ) {
                 error.statusCode = 401;
-                error.message = 'Token inv�lido o expirado.'
+                error.message = 'Token inválido o expirado.'
             }
 
             next(error)
