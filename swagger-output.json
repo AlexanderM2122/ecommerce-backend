@@ -419,9 +419,9 @@
     "/api/auth/": {
       "post": {
         "tags": [
-          "Autenticación"
+          "Autenticaci�n"
         ],
-        "summary": "Iniciar sesión",
+        "summary": "Iniciar sesi�n",
         "parameters": [
           {
             "name": "body",
@@ -449,10 +449,10 @@
         ],
         "responses": {
           "200": {
-            "description": "Operación completada."
+            "description": "Operaci�n completada."
           },
           "202": {
-            "description": "Se requiere segundo factor. Envía reto y codigo a /api/auth/mfa/login.",
+            "description": "Se requiere segundo factor. Env�a reto y codigo a /api/auth/mfa/login.",
             "schema": {
               "type": "object",
               "properties": {
@@ -463,13 +463,28 @@
             }
           },
           "400": {
-            "description": "Datos, código o enlace inválidos."
+            "description": "Datos, c�digo o enlace inv�lidos."
           },
           "401": {
-            "description": "Credenciales, sesión o reto inválidos."
+            "description": "Credenciales, sesi�n o reto inv�lidos."
           },
           "403": {
-            "description": "Correo sin verificar o acceso denegado."
+            "description": "Correo pendiente de verificaci�n. Presenta la pantalla de c�digo.",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "codigo": {
+                  "type": "string",
+                  "enum": [
+                    "correo_pendiente"
+                  ]
+                },
+                "email": {
+                  "type": "string",
+                  "format": "email"
+                }
+              }
+            }
           },
           "429": {
             "description": "Demasiados intentos.",
@@ -486,7 +501,7 @@
     "/api/auth/registro": {
       "post": {
         "tags": [
-          "Autenticación"
+          "Autenticaci�n"
         ],
         "summary": "Crear cuenta",
         "parameters": [
@@ -520,10 +535,10 @@
         ],
         "responses": {
           "201": {
-            "description": "Cuenta creada. El correo de verificación se envía en segundo plano."
+            "description": "Cuenta creada. El correo de verificaci�n se env�a en segundo plano."
           },
           "400": {
-            "description": "Datos, código o enlace inválidos."
+            "description": "Datos, c�digo o enlace inv�lidos."
           },
           "409": {
             "description": "Conflicto con el estado de la cuenta."
@@ -546,9 +561,9 @@
     "/api/auth/reenviar-verificacion": {
       "post": {
         "tags": [
-          "Autenticación"
+          "Autenticaci�n"
         ],
-        "summary": "Solicitar verificación de correo",
+        "summary": "Solicitar verificaci�n de correo",
         "parameters": [
           {
             "name": "body",
@@ -571,10 +586,10 @@
         ],
         "responses": {
           "202": {
-            "description": "Solicitud recibida."
+            "description": "Solicitud de c�digo por correo recibida."
           },
           "400": {
-            "description": "Datos, código o enlace inválidos."
+            "description": "Datos, c�digo o enlace inv�lidos."
           },
           "429": {
             "description": "Demasiados intentos.",
@@ -594,7 +609,7 @@
     "/api/auth/verificar-correo": {
       "post": {
         "tags": [
-          "Autenticación"
+          "Autenticaci�n"
         ],
         "summary": "Confirmar correo",
         "parameters": [
@@ -605,11 +620,17 @@
             "schema": {
               "type": "object",
               "required": [
-                "token"
+                "email",
+                "codigo"
               ],
               "properties": {
-                "token": {
-                  "type": "string"
+                "email": {
+                  "type": "string",
+                  "format": "email"
+                },
+                "codigo": {
+                  "type": "string",
+                  "pattern": "^[0-9]{6}$"
                 }
               }
             }
@@ -617,10 +638,10 @@
         ],
         "responses": {
           "204": {
-            "description": "Operación completada."
+            "description": "Operaci�n completada."
           },
           "400": {
-            "description": "Datos, código o enlace inválidos."
+            "description": "C�digo incorrecto, vencido o sin intentos."
           },
           "429": {
             "description": "Demasiados intentos.",
@@ -637,9 +658,9 @@
     "/api/auth/recuperar-password": {
       "post": {
         "tags": [
-          "Autenticación"
+          "Autenticaci�n"
         ],
-        "summary": "Solicitar recuperación de contraseña",
+        "summary": "Solicitar recuperaci�n de contrase�a",
         "parameters": [
           {
             "name": "body",
@@ -662,10 +683,10 @@
         ],
         "responses": {
           "202": {
-            "description": "Solicitud recibida."
+            "description": "Solicitud de c�digo por correo recibida."
           },
           "400": {
-            "description": "Datos, código o enlace inválidos."
+            "description": "Datos, c�digo o enlace inv�lidos."
           },
           "429": {
             "description": "Demasiados intentos.",
@@ -685,9 +706,9 @@
     "/api/auth/restablecer-password": {
       "post": {
         "tags": [
-          "Autenticación"
+          "Autenticaci�n"
         ],
-        "summary": "Restablecer contraseña",
+        "summary": "Restablecer contrase�a",
         "parameters": [
           {
             "name": "body",
@@ -713,10 +734,13 @@
         ],
         "responses": {
           "204": {
-            "description": "Operación completada."
+            "description": "Operaci�n completada."
           },
           "400": {
-            "description": "Datos, código o enlace inválidos."
+            "description": "Datos, c�digo o enlace inv�lidos."
+          },
+          "410": {
+            "description": "Autorizaci�n vencida o ya utilizada. Solicita otro c�digo."
           },
           "429": {
             "description": "Demasiados intentos.",
@@ -733,7 +757,7 @@
     "/api/auth/mfa/login": {
       "post": {
         "tags": [
-          "Autenticación"
+          "Autenticaci�n"
         ],
         "summary": "Completar el segundo factor",
         "parameters": [
@@ -760,13 +784,13 @@
         ],
         "responses": {
           "200": {
-            "description": "Operación completada."
+            "description": "Operaci�n completada."
           },
           "400": {
-            "description": "Datos, código o enlace inválidos."
+            "description": "Datos, c�digo o enlace inv�lidos."
           },
           "401": {
-            "description": "Credenciales, sesión o reto inválidos."
+            "description": "Credenciales, sesi�n o reto inv�lidos."
           },
           "429": {
             "description": "Demasiados intentos.",
@@ -783,7 +807,7 @@
     "/api/auth/mfa": {
       "get": {
         "tags": [
-          "Autenticación"
+          "Autenticaci�n"
         ],
         "summary": "Consultar segundo factor",
         "security": [
@@ -793,10 +817,10 @@
         ],
         "responses": {
           "200": {
-            "description": "Operación completada."
+            "description": "Operaci�n completada."
           },
           "401": {
-            "description": "Credenciales, sesión o reto inválidos."
+            "description": "Credenciales, sesi�n o reto inv�lidos."
           },
           "403": {
             "description": "Correo sin verificar o acceso denegado."
@@ -807,7 +831,7 @@
     "/api/auth/mfa/preparar": {
       "post": {
         "tags": [
-          "Autenticación"
+          "Autenticaci�n"
         ],
         "summary": "Generar una clave para la app autenticadora",
         "security": [
@@ -836,13 +860,13 @@
         ],
         "responses": {
           "200": {
-            "description": "Operación completada."
+            "description": "Operaci�n completada."
           },
           "400": {
-            "description": "Datos, código o enlace inválidos."
+            "description": "Datos, c�digo o enlace inv�lidos."
           },
           "401": {
-            "description": "Credenciales, sesión o reto inválidos."
+            "description": "Credenciales, sesi�n o reto inv�lidos."
           },
           "403": {
             "description": "Correo sin verificar o acceso denegado."
@@ -865,9 +889,9 @@
     "/api/auth/mfa/activar": {
       "post": {
         "tags": [
-          "Autenticación"
+          "Autenticaci�n"
         ],
-        "summary": "Confirmar la activación y recibir códigos de recuperación",
+        "summary": "Confirmar la activaci�n y recibir c�digos de recuperaci�n",
         "security": [
           {
             "BearerAuth": []
@@ -893,13 +917,13 @@
         ],
         "responses": {
           "200": {
-            "description": "Operación completada."
+            "description": "Operaci�n completada."
           },
           "400": {
-            "description": "Datos, código o enlace inválidos."
+            "description": "Datos, c�digo o enlace inv�lidos."
           },
           "401": {
-            "description": "Credenciales, sesión o reto inválidos."
+            "description": "Credenciales, sesi�n o reto inv�lidos."
           },
           "403": {
             "description": "Correo sin verificar o acceso denegado."
@@ -919,7 +943,7 @@
     "/api/auth/mfa/desactivar": {
       "post": {
         "tags": [
-          "Autenticación"
+          "Autenticaci�n"
         ],
         "summary": "Desactivar segundo factor",
         "security": [
@@ -952,13 +976,13 @@
         ],
         "responses": {
           "200": {
-            "description": "Operación completada."
+            "description": "Operaci�n completada."
           },
           "400": {
-            "description": "Datos, código o enlace inválidos."
+            "description": "Datos, c�digo o enlace inv�lidos."
           },
           "401": {
-            "description": "Credenciales, sesión o reto inválidos."
+            "description": "Credenciales, sesi�n o reto inv�lidos."
           },
           "403": {
             "description": "Correo sin verificar o acceso denegado."
@@ -981,9 +1005,9 @@
     "/api/auth/tiempo": {
       "get": {
         "tags": [
-          "Autenticación"
+          "Autenticaci�n"
         ],
-        "summary": "Consultar tiempo de sesión",
+        "summary": "Consultar tiempo de sesi�n",
         "security": [
           {
             "BearerAuth": []
@@ -991,10 +1015,10 @@
         ],
         "responses": {
           "200": {
-            "description": "Operación completada."
+            "description": "Operaci�n completada."
           },
           "401": {
-            "description": "Credenciales, sesión o reto inválidos."
+            "description": "Credenciales, sesi�n o reto inv�lidos."
           },
           "403": {
             "description": "Correo sin verificar o acceso denegado."
@@ -1232,6 +1256,63 @@
         "responses": {
           "default": {
             "description": ""
+          }
+        }
+      }
+    },
+    "/api/auth/verificar-recuperacion": {
+      "post": {
+        "tags": [
+          "Autenticaci�n"
+        ],
+        "summary": "Verificar c�digo de recuperaci�n",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": [
+                "email",
+                "codigo"
+              ],
+              "properties": {
+                "email": {
+                  "type": "string",
+                  "format": "email"
+                },
+                "codigo": {
+                  "type": "string",
+                  "pattern": "^[0-9]{6}$"
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "C�digo confirmado. Usa el token de un solo uso para restablecer la contrase�a.",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "token": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "C�digo incorrecto, vencido o sin intentos."
+          },
+          "429": {
+            "description": "Demasiados intentos.",
+            "headers": {
+              "Retry-After": {
+                "type": "integer",
+                "description": "Segundos para volver a intentar."
+              }
+            }
           }
         }
       }

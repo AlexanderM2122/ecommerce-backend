@@ -2,7 +2,7 @@ const nodemailer = require('nodemailer')
 
 function configuration() {
     const {
-        AUTH_FRONTEND_URL, RESEND_API_KEY, AUTH_MAIL_FROM, AUTH_MAILPIT_PORT,
+        RESEND_API_KEY, AUTH_MAIL_FROM, AUTH_MAILPIT_PORT,
         AUTH_GMAIL_USER, AUTH_GMAIL_APP_PASSWORD
     } = process.env
     const gmailUser = AUTH_GMAIL_USER?.trim()
@@ -15,34 +15,21 @@ function configuration() {
     const mailpit = development && /^\d{1,5}$/.test(AUTH_MAILPIT_PORT || '') &&
         Number(AUTH_MAILPIT_PORT) > 0 && Number(AUTH_MAILPIT_PORT) <= 65535
 
-    if (!AUTH_FRONTEND_URL || (gmailConfigured && !gmail) ||
+    if ((gmailConfigured && !gmail) ||
         (!gmail && (!AUTH_MAIL_FROM || (!mailpit && !RESEND_API_KEY)))) {
-        const error = new Error('El servicio de correo no está disponible.')
+        const error = new Error('El servicio de correo no est� disponible.')
         error.statusCode = 503
         throw error
     }
 
-    const origin = new URL(AUTH_FRONTEND_URL)
-    const local = development && ['localhost', '127.0.0.1', '[::1]'].includes(origin.hostname)
-    if (origin.protocol !== 'https:' && !(local && origin.protocol === 'http:')) {
-        throw new Error('AUTH_FRONTEND_URL requiere HTTPS.')
-    }
-    if (origin.username || origin.password || origin.pathname !== '/' || origin.search || origin.hash) {
-        throw new Error('AUTH_FRONTEND_URL debe contener únicamente el origen.')
-    }
-    return { origin, gmail, apiKey: RESEND_API_KEY, from: AUTH_MAIL_FROM, mailpitPort: mailpit ? AUTH_MAILPIT_PORT : null }
+    return { gmail, apiKey: RESEND_API_KEY, from: AUTH_MAIL_FROM, mailpitPort: mailpit ? AUTH_MAILPIT_PORT : null }
 }
 
-async function sendAuthLink(email, purpose, token) {
-    const { origin, gmail, apiKey, from, mailpitPort } = configuration()
-    const verify = purpose === 'verify'
-    const link = new URL(verify ? '/Auth/VerificarCorreo' : '/Auth/RestablecerPassword', origin)
-    link.searchParams.set('token', token)
-    const subject = verify ? 'Verifica tu correo' : 'Restablece tu contraseña'
-    const expiration = verify ? '24 horas' : '30 minutos'
-    const text = subject + ' en Ecommerce:\n\n' + link.href +
-        '\n\nEl enlace es de un solo uso y vence en ' + expiration +
-        '. Si no solicitaste esta acción, ignora este mensaje.'
+async function sendAuthCode(email, purpose, code) {
+    const { gmail, apiKey, from, mailpitPort } = configuration()
+    const subject = purpose === 'verify' ? 'Verifica tu correo' : 'Restablece tu contrase�a'
+    const text = subject + ' en Ecommerce.\n\nTu c�digo es: ' + code +
+        '\n\nVence en 10 minutos y solo se puede usar una vez. Si no solicitaste esta acci�n, ignora este mensaje.'
 
     if (gmail) {
         const transport = nodemailer.createTransport({
@@ -72,7 +59,7 @@ async function sendAuthLink(email, purpose, token) {
         redirect: 'error', signal: AbortSignal.timeout(7000)
     })
     await response.body?.cancel()
-    if (!response.ok) throw new Error('El proveedor de correo rechazó el envío (' + response.status + ').')
+    if (!response.ok) throw new Error('El proveedor de correo rechaz� el env�o (' + response.status + ').')
 }
 
-module.exports = { configuration, sendAuthLink }
+module.exports = { configuration, sendAuthCode }

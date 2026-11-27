@@ -11,12 +11,14 @@ const { clearLoginLimit } = require('../middlewares/auth-rate.middleware')
 const auth = {}
 const dummyHash = bcrypt.hash(crypto.randomBytes(32).toString('hex'), BCRYPT_SALT_ROUNDS)
 const minute = 60_000
-const invalidLink = 'El enlace es inválido, venció o ya fue utilizado.'
-const emailResponse = 'Si la cuenta cumple los requisitos, recibirás un correo con el enlace.'
-const incorrect = 'Usuario o contraseña incorrectos.'
+const invalidCode = 'El c�digo es inv�lido, venci� o agot� sus intentos.'
+const codeTtl = 10 * minute
+const maxCodeAttempts = 5
+const emailResponse = 'Si la cuenta cumple los requisitos, recibir�s un correo con el c�digo.'
+const incorrect = 'Usuario o contrase�a incorrectos.'
 const purposes = {
-    verify: { hash: 'verificacionHash', expiry: 'verificacionVence', ttl: 24 * 60 * minute },
-    reset: { hash: 'recuperacionHash', expiry: 'recuperacionVence', ttl: 30 * minute }
+    verify: { hash: 'verificacionHash', expiry: 'verificacionVence', attempts: 'verificacionIntentos' },
+    reset: { hash: 'recuperacionHash', expiry: 'recuperacionVence', attempts: 'recuperacionIntentos' }
 }
 
 function fail(status, message) {
@@ -32,8 +34,8 @@ function hash(value) {
 }
 
 function tokenHash(value) {
-    if (typeof value !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(value)) throw fail(400, invalidLink)
-    return hash(value)
+    if (typeof value !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(value)) throw fail(410, 'La autorizaci�n para cambiar la contrase�a venci�. Solicita otro c�digo.')
+    return hash('password-grant:' + value)
 }
 
 function passwordInput(value) {
@@ -68,36 +70,84 @@ async function completeLogin(req, res, account, role) {
     res.json(tokenFor(account, role))
 }
 
-async function deliverLink(email, purpose) {
+function codeHash(account, purpose, code) {
+    return crypto.createHmac('sha256', process.env.JWT_SECRET)
+        .update(JSON.stringify(['auth-email-code', account.id, purpose, code]))
+        .digest('hex')
+}
+
+async function deliverCode(email, purpose) {
     const fields = purposes[purpose]
-    const token = randomToken()
     const recipient = await locked({ email }, async (account, transaction) => {
         if (!account || Boolean(account.correoVerificadoEn) === (purpose === 'verify')) return null
-        // Conserva el enlace durante un minuto para evitar envíos duplicados.
-        if (account[fields.expiry]?.getTime() > Date.now() + fields.ttl - minute) return null
-        account[fields.hash] = hash(token)
-        account[fields.expiry] = new Date(Date.now() + fields.ttl)
+        const timeLeft = (account[fields.expiry]?.getTime() || 0) - Date.now()
+        if (timeLeft > codeTtl - minute && timeLeft <= codeTtl) return null
+
+        let code, digest
+        do {
+            code = String(crypto.randomInt(1000000)).padStart(6, '0')
+            digest = codeHash(account, purpose, code)
+        } while (digest === account[fields.hash])
+        account[fields.hash] = digest
+        account[fields.expiry] = new Date(Date.now() + codeTtl)
+        account[fields.attempts] = 0
         await account.save({ transaction })
-        return account.email
+        return { email: account.email, digest, code }
     })
     if (!recipient) return
     try {
-        await mail.sendAuthLink(recipient, purpose, token)
+        await mail.sendAuthCode(recipient.email, purpose, recipient.code)
     } catch (error) {
-        await usuario.update({ [fields.hash]: null, [fields.expiry]: null }, {
-            where: { email: recipient, [fields.hash]: hash(token) }
+        await usuario.update({ [fields.hash]: null, [fields.expiry]: null, [fields.attempts]: null }, {
+            where: { email: recipient.email, [fields.hash]: recipient.digest }
         })
         throw error
     }
 }
 
-function queueLink(email, purpose) {
-    // Responde antes de consultar la cuenta o contactar al proveedor.
+function queueCode(email, purpose) {
+    // La respuesta p�blica no revela si existe una cuenta que pueda recibir el c�digo.
     setImmediate(() => {
-        deliverLink(email, purpose).catch(error => {
-            console.error('Error al enviar un correo de autenticación:', error.name)
+        deliverCode(email, purpose).catch(error => {
+            console.error('Error al enviar un correo de autenticaci�n:', error.name)
         })
     })
+}
+
+async function verifyEmailCode(email, code, purpose) {
+    if (typeof code !== 'string' || !/^[0-9]{6}$/.test(code)) throw fail(400, invalidCode)
+    const fields = purposes[purpose]
+    const verified = await locked({ email }, async (account, transaction) => {
+        if (!account || Boolean(account.correoVerificadoEn) === (purpose === 'verify') ||
+            !account[fields.hash] || account[fields.expiry] <= new Date() ||
+            account[fields.attempts] == null || account[fields.attempts] >= maxCodeAttempts) return null
+
+        const expected = Buffer.from(account[fields.hash], 'hex')
+        const candidate = Buffer.from(codeHash(account, purpose, code), 'hex')
+        if (!crypto.timingSafeEqual(expected, candidate)) {
+            account[fields.attempts]++
+            await account.save({ transaction })
+            return null
+        }
+
+        if (purpose === 'verify') {
+            account.correoVerificadoEn = new Date()
+            account[fields.hash] = null
+            account[fields.expiry] = null
+            account[fields.attempts] = null
+            await account.save({ transaction })
+            return {}
+        }
+
+        const token = randomToken()
+        account[fields.hash] = tokenHash(token)
+        account[fields.expiry] = new Date(Date.now() + codeTtl)
+        account[fields.attempts] = maxCodeAttempts
+        await account.save({ transaction })
+        return { token }
+    })
+    if (!verified) throw fail(400, invalidCode)
+    return verified
 }
 
 auth.registroValidator = [validarEmail, validarNombre, validarPasswordFuerte, validarCampos]
@@ -107,7 +157,7 @@ auth.passwordValidator = [validarPasswordFuerte, validarCampos]
 auth.login = async function (req, res) {
     const { email, password } = req.body || {}
     if (typeof email !== 'string' || !email.trim() || email.length > 254 || !passwordInput(password)) {
-        throw fail(400, 'Debe proporcionar un correo y una contraseña válidos.')
+        throw fail(400, 'Debe proporcionar un correo y una contrase�a v�lidos.')
     }
 
     const found = await usuario.findOne({ where: { email: email.trim().toLowerCase() }, attributes: ['id', 'passwordhash'] })
@@ -116,7 +166,7 @@ auth.login = async function (req, res) {
 
     const result = await locked({ id: found.id }, async (account, transaction) => {
         if (!account || account.passwordhash !== found.passwordhash) throw fail(401, incorrect)
-        if (!account.correoVerificadoEn) throw fail(403, 'Verifica tu correo antes de iniciar sesión.')
+        if (!account.correoVerificadoEn) return { emailPendiente: account.email }
 
         if (account.mfaSecreto) {
             const reto = randomToken()
@@ -131,6 +181,10 @@ auth.login = async function (req, res) {
         return { account, role: accountRole.nombre }
     })
 
+    if (result.emailPendiente) {
+        clearLoginLimit(result.emailPendiente)
+        return res.status(403).json({ codigo: 'correo_pendiente', email: result.emailPendiente })
+    }
     if (result.reto) return res.status(202).json({ reto: result.reto })
     return completeLogin(req, res, result.account, result.role)
 }
@@ -139,49 +193,49 @@ auth.registro = async function (req, res) {
     const { email, password, nombre } = req.body
     mail.configuration()
     const accountRole = await rol.findOne({ where: { nombre: 'Usuario' }, attributes: ['id'] })
-    if (!accountRole) throw fail(500, 'Error de configuración de roles en el servidor.')
+    if (!accountRole) throw fail(500, 'Error de configuraci�n de roles en el servidor.')
 
     const account = await usuario.create({
         id: crypto.randomUUID(), email, nombre, rolid: accountRole.id, protegido: false,
         passwordhash: await bcrypt.hash(password, BCRYPT_SALT_ROUNDS)
     })
-    queueLink(account.email, 'verify')
+    queueCode(account.email, 'verify')
     await req.bitacora('usuario.registro', account.email)
     res.status(201).json({ id: account.id, email, nombre, rol: 'Usuario' })
 }
 
-function requestLink(purpose) {
+function requestCode(purpose) {
     return (req, res) => {
         mail.configuration()
-        queueLink(req.body.email, purpose)
+        queueCode(req.body.email, purpose)
         res.status(202).json({ mensaje: emailResponse })
     }
 }
 
-auth.reenviar = requestLink('verify')
-auth.recuperar = requestLink('reset')
+auth.reenviar = requestCode('verify')
+auth.recuperar = requestCode('reset')
 
 auth.verificar = async function (req, res) {
-    const digest = tokenHash(req.body?.token)
-    await locked({ verificacionHash: digest }, async (account, transaction) => {
-        if (!account || account.verificacionVence <= new Date()) throw fail(400, invalidLink)
-        account.correoVerificadoEn = new Date()
-        account.verificacionHash = null
-        account.verificacionVence = null
-        await account.save({ transaction })
-    })
+    await verifyEmailCode(req.body.email, req.body.codigo, 'verify')
     res.sendStatus(204)
+}
+
+auth.verificarRecuperacion = async function (req, res) {
+    res.json(await verifyEmailCode(req.body.email, req.body.codigo, 'reset'))
 }
 
 auth.restablecer = async function (req, res) {
     const digest = tokenHash(req.body?.token)
     const hashPassword = await bcrypt.hash(req.body.password, BCRYPT_SALT_ROUNDS)
     await locked({ recuperacionHash: digest }, async (account, transaction) => {
-        if (!account || account.recuperacionVence <= new Date()) throw fail(400, invalidLink)
+        if (!account || account.recuperacionVence <= new Date()) {
+            throw fail(410, 'La autorizaci�n para cambiar la contrase�a venci�. Solicita otro c�digo.')
+        }
         account.passwordhash = hashPassword
         account.authVersion = crypto.randomUUID()
         account.recuperacionHash = null
         account.recuperacionVence = null
+        account.recuperacionIntentos = null
         account.mfaPendiente = null
         account.mfaPendienteVence = null
         clearChallenge(account)
@@ -207,7 +261,7 @@ function consumeFactor(account, code) {
 auth.segundoFactor = async function (req, res) {
     const { reto, codigo } = req.body || {}
     if (typeof reto !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(reto)) {
-        throw fail(401, 'El intento de inicio de sesión venció. Vuelve a ingresar.')
+        throw fail(401, 'El intento de inicio de sesi�n venci�. Vuelve a ingresar.')
     }
 
     const result = await locked({ mfaRetoHash: hash(reto) }, async (account, transaction) => {
@@ -227,16 +281,16 @@ auth.segundoFactor = async function (req, res) {
     })
 
     if (!result || result.exhausted) {
-        throw fail(401, 'El intento de inicio de sesión venció o agotó sus intentos. Vuelve a ingresar.')
+        throw fail(401, 'El intento de inicio de sesi�n venci� o agot� sus intentos. Vuelve a ingresar.')
     }
-    if (!result.account) throw fail(400, 'El código es inválido o ya fue utilizado.')
+    if (!result.account) throw fail(400, 'El c�digo es inv�lido o ya fue utilizado.')
     return completeLogin(req, res, result.account, result.role)
 }
 
 function withCurrentAccount(req, operation) {
     return locked({ id: req.authAccount.id }, (account, transaction) => {
         if (!account || account.authVersion !== req.authAccount.authVersion || !account.correoVerificadoEn) {
-            throw fail(401, 'La sesión venció. Vuelve a ingresar.')
+            throw fail(401, 'La sesi�n venci�. Vuelve a ingresar.')
         }
         return operation(account, transaction)
     })
@@ -244,7 +298,7 @@ function withCurrentAccount(req, operation) {
 
 async function checkPassword(account, password) {
     if (!passwordInput(password) || !await bcrypt.compare(password, account.passwordhash)) {
-        throw fail(400, 'La contraseña actual es incorrecta.')
+        throw fail(400, 'La contrase�a actual es incorrecta.')
     }
 }
 
@@ -254,7 +308,7 @@ auth.estadoMfa = (req, res) => {
 
 auth.prepararMfa = async function (req, res) {
     const secret = await withCurrentAccount(req, async (account, transaction) => {
-        if (account.mfaSecreto) throw fail(409, 'La autenticación multifactor ya está activa.')
+        if (account.mfaSecreto) throw fail(409, 'La autenticaci�n multifactor ya est� activa.')
         await checkPassword(account, req.body?.password)
 
         const secret = crypto.randomBytes(20)
@@ -269,11 +323,11 @@ auth.prepararMfa = async function (req, res) {
 auth.activarMfa = async function (req, res) {
     const result = await withCurrentAccount(req, async (account, transaction) => {
         if (!account.mfaPendiente || account.mfaPendienteVence <= new Date()) {
-            throw fail(400, 'La configuración venció. Genera una clave nueva.')
+            throw fail(400, 'La configuraci�n venci�. Genera una clave nueva.')
         }
         const secret = totp.decrypt(account.mfaPendiente, account.id)
         const step = totp.matchingStep(secret, req.body?.codigo, null)
-        if (step === null) throw fail(400, 'El código de la app autenticadora es inválido.')
+        if (step === null) throw fail(400, 'El c�digo de la app autenticadora es inv�lido.')
 
         const codes = Array.from({ length: 8 }, () => crypto.randomBytes(8).toString('hex'))
         account.mfaSecreto = account.mfaPendiente
@@ -291,9 +345,9 @@ auth.activarMfa = async function (req, res) {
 
 auth.desactivarMfa = async function (req, res) {
     const result = await withCurrentAccount(req, async (account, transaction) => {
-        if (!account.mfaSecreto) throw fail(409, 'La autenticación multifactor ya está desactivada.')
+        if (!account.mfaSecreto) throw fail(409, 'La autenticaci�n multifactor ya est� desactivada.')
         await checkPassword(account, req.body?.password)
-        if (!consumeFactor(account, req.body?.codigo)) throw fail(400, 'El código es inválido o ya fue utilizado.')
+        if (!consumeFactor(account, req.body?.codigo)) throw fail(400, 'El c�digo es inv�lido o ya fue utilizado.')
 
         account.mfaSecreto = null
         account.mfaUltimoPaso = null
