@@ -12,3 +12,7 @@ const outputFile = './swagger-output.json'
 const routes = ['./index.js']
 
 swaggerAutogen(outputFile, routes, doc)
+    .catch(() => {
+        console.error('Error al generar la documentación Swagger.')
+        process.exitCode = 1
+    })
