@@ -1,5 +1,9 @@
 const multer = require("multer")
-const fs = require("fs")
+const fs = require("node:fs")
+const path = require("node:path")
+const { randomUUID } = require("node:crypto")
+
+const uploadsDir = path.resolve(__dirname, "../uploads")
 
 const imageFilter = (req, file, cb) => {
     if (
@@ -16,11 +20,10 @@ const imageFilter = (req, file, cb) => {
 
 var storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        fs.mkdirSync("uploads/", { recursive: true })
-        cb(null, "uploads/")
+        fs.mkdir(uploadsDir, { recursive: true }, error => cb(error, uploadsDir))
     },
     filename: (req, file, cb) => {
-        cb(null, `${Date.now()}-${file.originalname}`)
+        cb(null, `${randomUUID()}-${file.originalname}`)
     }
 })
 

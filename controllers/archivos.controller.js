@@ -1,4 +1,4 @@
-const { archivo } = require('../models')
+const { archivo, sequelize } = require('../models')
 const fs = require('fs')
 const path = require('path')
 
@@ -109,20 +109,21 @@ self.create = async function (req, res, next) {
             binario = await archivosFS.readFile( rutaArchivo(req.file.filename))
         }
 
-        const data = await archivo.create({
-            mime: req.file.mimetype,
-            indb: indb,
-            nombre: req.file.filename,
-            size: req.file.size,
-            datos: binario
+        const data = await sequelize.transaction(async transaction => {
+            const creado = await archivo.create({
+                mime: req.file.mimetype,
+                indb,
+                nombre: req.file.filename,
+                size: req.file.size,
+                datos: binario
+            }, { transaction })
+            await req.bitacora('archivos.crear', creado.id, { transaction })
+            return creado
         })
 
         nombreTemporal = null
-
         if (indb)
             await eliminarArchivo(req.file.filename)
-
-        await req.bitacora('archivos.crear', data.id)
 
         res.status(201).json({
             id: data.id,
