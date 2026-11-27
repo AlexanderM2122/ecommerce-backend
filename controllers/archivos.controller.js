@@ -1,9 +1,6 @@
-const { archivo, sequelize } = require('../models')
-const fs = require('fs')
-const path = require('path')
-
-const archivosFS = fs.promises
-const uploadsDir = path.resolve(__dirname, '../uploads')
+const { archivo } = require('../models')
+const archivosFS = require('node:fs/promises')
+const { rutaArchivo, eliminarArchivo, guardarConImagen } = require('../services/archivos.service')
 
 let self = {}
 
@@ -11,29 +8,6 @@ const crearError = (mensaje, statusCode = 400) => {
     const error = new Error(mensaje)
     error.statusCode = statusCode
     return error
-}
-
-const rutaArchivo = (nombre) => {
-    if (
-        typeof nombre !== 'string' ||
-        !nombre ||
-        nombre !== path.basename(nombre)
-    ) {
-        throw crearError('Nombre de archivo inválido.')
-    }
-
-    return path.join(uploadsDir, nombre)
-}
-
-const eliminarArchivo = async (nombre) => {
-    if (!nombre) return
-
-    try {
-        await archivosFS.unlink(rutaArchivo(nombre))
-    } catch (error) {
-        if (error.code !== 'ENOENT')
-            console.error('Error al eliminar archivo:', error)
-    }
 }
 
 self.getAll = async function (req, res, next) {
@@ -97,33 +71,11 @@ self.get = async function (req, res, next) {
 }
 
 self.create = async function (req, res, next) {
-    let nombreTemporal = req.file?.filename
     try {
         if (!req.file)
             throw crearError('El archivo es obligatorio.')
 
-        const indb = process.env.FILES_IN_DB === 'true'
-        let binario = null;
-
-        if (indb) {
-            binario = await archivosFS.readFile( rutaArchivo(req.file.filename))
-        }
-
-        const data = await sequelize.transaction(async transaction => {
-            const creado = await archivo.create({
-                mime: req.file.mimetype,
-                indb,
-                nombre: req.file.filename,
-                size: req.file.size,
-                datos: binario
-            }, { transaction })
-            await req.bitacora('archivos.crear', creado.id, { transaction })
-            return creado
-        })
-
-        nombreTemporal = null
-        if (indb)
-            await eliminarArchivo(req.file.filename)
+        const data = await guardarConImagen(req, registro => registro)
 
         res.status(201).json({
             id: data.id,
@@ -133,8 +85,7 @@ self.create = async function (req, res, next) {
         })
 
     } catch (error) {
-        await eliminarArchivo(nombreTemporal)
-        next(error);
+        next(error)
     }
 }
 

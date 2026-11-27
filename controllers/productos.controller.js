@@ -1,6 +1,6 @@
 const { producto,categoria, Sequelize } = require('../models')
 const { body, validationResult } = require('express-validator')
-const Op = Sequelize.Op
+const { guardarConImagen, eliminarArchivo } = require('../services/archivos.service')
 
 let self = {}
 
@@ -85,61 +85,51 @@ self.get = async function (req, res, next) {
     }
 }
 
-self.create = async function (req, res, next) {
+async function guardarProducto(req, res, next, actualizar) {
     try {
-        const errors = validationResult(req)
-        if (!errors.isEmpty()) {
-            const error = new Error('Los datos proporcionados no son válidos.')
-            error.statusCode = 400
-            throw error
+        if (!validationResult(req).isEmpty()) {
+            await eliminarArchivo(req.file?.filename)
+            return res.status(400).json({ mensaje: 'Los datos proporcionados no son válidos.' })
         }
 
-        let data = await producto.create({
-            titulo: req.body.titulo,
-            descripcion: req.body.descripcion,
-            precio: req.body.precio,
-            archivoid: req.body.archivoid || null
-        });
+        const resultado = await guardarConImagen(req, async (imagen, transaction) => {
+            const datos = {
+                titulo: req.body.titulo,
+                descripcion: req.body.descripcion,
+                precio: req.body.precio,
+                archivoid: imagen?.id ?? req.body.archivoid
+            }
 
-        await req.bitacora("producto.crear", data.id)
-        res.status(201).json(data)
-    } catch (error) {
-        next(error)
-    }
-}
+            if (!actualizar) {
+                const creado = await producto.create({
+                    ...datos,
+                    archivoid: datos.archivoid || null
+                }, { transaction })
+                await req.bitacora('producto.crear', creado.id, { transaction })
+                return creado
+            }
 
-self.update = async function (req, res, next) {
-    try {
-        const errors = validationResult(req)
+            const id = req.params.id
+            const [filas] = await producto.update(datos, { where: { id }, transaction })
+            if (filas === 0) {
+                const error = new Error('El producto no se encontró.')
+                error.statusCode = 404
+                throw error
+            }
 
-        if (!errors.isEmpty()) {
-            const error = new Error('Los datos proporcionados no son válidos.')
-            error.statusCode = 400
-            throw error
-        }
-
-        let id = req.params.id
-
-        const body = {
-            titulo: req.body.titulo,
-            descripcion: req.body.descripcion,
-            precio: req.body.precio,
-            archivoid: req.body.archivoid
-        }
-
-        let data = await producto.update(body, {
-            where: { id: id }
+            await req.bitacora('producto.editar', id, { transaction })
         })
 
-        if (data[0] === 0)
-            return res.status(404).send()
-
-        await req.bitacora("producto.editar", id)
-        res.status(204).send()
+        return actualizar ? res.status(204).send() : res.status(201).json(resultado)
     } catch (error) {
+        if (actualizar && error.statusCode === 404)
+            return res.status(404).send()
         next(error)
     }
 }
+
+self.create = (req, res, next) => guardarProducto(req, res, next, false)
+self.update = (req, res, next) => guardarProducto(req, res, next, true)
 
 self.delete = async function (req, res, next) {
     try {

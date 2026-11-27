@@ -1,14 +1,15 @@
 const router = require('express').Router();
 const productos = require('../controllers/productos.controller');
 const Authorize = require('../middlewares/auth.middleware');
+const upload = require('../middlewares/upload.middleware');
 
 router.get('/', Authorize('Usuario,Administrador'), productos.getAll);
 
 router.get('/:id', Authorize('Usuario,Administrador'), productos.get);
 
-router.post('/', Authorize('Administrador'), productos.productoValidator, productos.create);
+router.post('/', Authorize('Administrador'), upload.single('file'), productos.productoValidator, productos.create);
 
-router.put('/:id', Authorize('Administrador'), productos.productoValidator, productos.update);
+router.put('/:id', Authorize('Administrador'), upload.single('file'), productos.productoValidator, productos.update);
 
 router.delete('/:id', Authorize('Administrador'), productos.delete);
 
