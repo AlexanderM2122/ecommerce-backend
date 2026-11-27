@@ -11,9 +11,13 @@ const crearError = (mensaje, statusCode = 400) => {
     return error
 }
 
-const obtenerUsuarioActual = async (req) => {
+const obtenerUsuarioActual = async (req, transaction) => {
     const email = req.decodedToken?.[ClaimTypes.Name]
-    const actual = await usuario.findOne({ where: { email }, attributes: ['id', 'email'] })
+    const actual = await usuario.findOne({
+        where: { email },
+        attributes: ['id', 'email'],
+        ...(transaction && { transaction, lock: transaction.LOCK.UPDATE })
+    })
     if (!actual)
         throw crearError('Usuario no válido.', 401)
     return actual
@@ -83,42 +87,55 @@ self.get = async function (req, res, next) {
 }
 
 self.confirmarCompra = async function (req, res, next) {
-    const t = await sequelize.transaction()
     try {
-        const actual = await obtenerUsuarioActual(req)
+        const nuevoPedido = await sequelize.transaction(async transaction => {
+            // El bloqueo del usuario serializa las confirmaciones de su carrito.
+            const actual = await obtenerUsuarioActual(req, transaction)
 
-        const itemsCarrito = await carrito.findAll({
-            where: { usuarioid: actual.id },
-            include: [{ model: producto, attributes: ['id', 'precio'] }],
-            transaction: t
+            const itemsCarrito = await carrito.findAll({
+                where: { usuarioid: actual.id },
+                attributes: ['id', 'productoid', 'cantidad'],
+                transaction,
+                lock: transaction.LOCK.UPDATE
+            })
+
+            if (itemsCarrito.length === 0)
+                throw crearError('El carrito está vacío.', 400)
+
+            const productos = await producto.findAll({
+                where: { id: itemsCarrito.map(item => item.productoid) },
+                attributes: ['id', 'precio'],
+                transaction
+            })
+            const precios = new Map(productos.map(item => [item.id, item.precio]))
+
+            // MySQL devuelve los DECIMAL como texto. Se suman centavos enteros.
+            const centavos = itemsCarrito.reduce((suma, item) => {
+                const [entero, fraccion = ''] = String(precios.get(item.productoid)).split('.')
+                return suma + BigInt(entero + fraccion.padEnd(2, '0')) * BigInt(item.cantidad)
+            }, 0n)
+            const total = `${centavos / 100n}.${(centavos % 100n).toString().padStart(2, '0')}`
+
+            const creado = await pedido.create({
+                usuarioid: actual.id,
+                total,
+                estado: 'Completado'
+            }, { transaction })
+
+            await detallepedido.bulkCreate(itemsCarrito.map(item => ({
+                pedidoid: creado.id,
+                productoid: item.productoid,
+                cantidad: item.cantidad,
+                preciounitario: precios.get(item.productoid)
+            })), { transaction })
+
+            await carrito.destroy({
+                where: { usuarioid: actual.id, id: itemsCarrito.map(item => item.id) },
+                transaction
+            })
+            await req.bitacora('pedidos.crear', `${creado.id}`, { transaction })
+            return creado
         })
-
-        if (itemsCarrito.length === 0)
-            throw crearError('El carrito está vacío.', 400)
-
-        const total = Number(itemsCarrito.reduce(
-            (acc, item) => acc + Number(item.producto.precio) * item.cantidad,
-            0
-        ).toFixed(2))
-
-        const nuevoPedido = await pedido.create({
-            usuarioid: actual.id,
-            total,
-            estado: 'Completado'
-        }, { transaction: t })
-
-        const detalles = itemsCarrito.map(item => ({
-            pedidoid: nuevoPedido.id,
-            productoid: item.productoid,
-            cantidad: item.cantidad,
-            preciounitario: Number(item.producto.precio)
-        }))
-
-        await detallepedido.bulkCreate(detalles, { transaction: t })
-        await carrito.destroy({ where: { usuarioid: actual.id }, transaction: t })
-
-        await t.commit()
-        await req.bitacora('pedidos.crear', `${nuevoPedido.id}`)
 
         res.status(201).json({
             id: nuevoPedido.id,
@@ -127,7 +144,6 @@ self.confirmarCompra = async function (req, res, next) {
             createdAt: nuevoPedido.createdAt
         })
     } catch (error) {
-        await t.rollback()
         next(error)
     }
 }

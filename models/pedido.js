@@ -20,7 +20,7 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false
         },
         total: {
-        type: DataTypes.DECIMAL(10, 2),
+        type: DataTypes.DECIMAL(22, 2),
         allowNull: false
         },
         estado: {
