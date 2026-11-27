@@ -17,7 +17,7 @@ function configuration() {
 
     if ((gmailConfigured && !gmail) ||
         (!gmail && (!AUTH_MAIL_FROM || (!mailpit && !RESEND_API_KEY)))) {
-        const error = new Error('El servicio de correo no est� disponible.')
+        const error = new Error('El servicio de correo no está disponible.')
         error.statusCode = 503
         throw error
     }
@@ -27,9 +27,9 @@ function configuration() {
 
 async function sendAuthCode(email, purpose, code) {
     const { gmail, apiKey, from, mailpitPort } = configuration()
-    const subject = purpose === 'verify' ? 'Verifica tu correo' : 'Restablece tu contrase�a'
-    const text = subject + ' en Ecommerce.\n\nTu c�digo es: ' + code +
-        '\n\nVence en 10 minutos y solo se puede usar una vez. Si no solicitaste esta acci�n, ignora este mensaje.'
+    const subject = purpose === 'verify' ? 'Verifica tu correo' : 'Restablece tu contraseña'
+    const text = subject + ' en Ecommerce.\n\nTu código es: ' + code +
+        '\n\nVence en 10 minutos y solo se puede usar una vez. Si no solicitaste esta acción, ignora este mensaje.'
 
     if (gmail) {
         const transport = nodemailer.createTransport({
@@ -59,7 +59,7 @@ async function sendAuthCode(email, purpose, code) {
         redirect: 'error', signal: AbortSignal.timeout(7000)
     })
     await response.body?.cancel()
-    if (!response.ok) throw new Error('El proveedor de correo rechaz� el env�o (' + response.status + ').')
+    if (!response.ok) throw new Error('El proveedor de correo rechazó el envío (' + response.status + ').')
 }
 
 module.exports = { configuration, sendAuthCode }

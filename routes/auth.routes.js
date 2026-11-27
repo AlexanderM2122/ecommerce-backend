@@ -28,14 +28,14 @@ router.post('/mfa/desactivar', account, limit('mfa-disable', 100, 5), auth.desac
 
 router.get('/tiempo', account, auth.tiempo)
 
-// Conserva los mensajes de validaci?n. Los errores internos pueden contener SQL.
+// Conserva los mensajes de validación. Los errores internos pueden contener SQL.
 router.use((error, req, res, next) => {
     if (error.name === 'SequelizeUniqueConstraintError') {
-        return res.status(409).json({ mensaje: 'No se puede completar la operaci?n solicitada.' })
+        return res.status(409).json({ mensaje: 'No se puede completar la operación solicitada.' })
     }
     if (error.statusCode >= 400 && error.statusCode < 600) return next(error)
-    console.error('Error interno de autenticaci?n:', error.name)
-    next(new Error('Error interno de autenticaci?n.'))
+    console.error('Error interno de autenticación:', error.name)
+    next(new Error('Error interno de autenticación.'))
 })
 
 module.exports = router

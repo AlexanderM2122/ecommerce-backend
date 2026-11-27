@@ -1,6 +1,6 @@
 # Ecommerce backend
 
-API REST desarrollada con Node.js, Express, Sequelize y MySQL para administrar productos, categor�as, usuarios, archivos, carrito y pedidos. Incluye autenticaci�n JWT, autorizaci�n por roles y bit�cora de acciones.
+API REST desarrollada con Node.js, Express, Sequelize y MySQL para administrar productos, categorías, usuarios, archivos, carrito y pedidos. Incluye autenticación JWT, autorización por roles y bitácora de acciones.
 
 ## Ejecutar en local
 
@@ -21,7 +21,7 @@ API REST desarrollada con Node.js, Express, Sequelize y MySQL para administrar p
    npx sequelize db:migrate
    ```
 
-   Si la base de datos est� vac�a, carga los datos de demostraci�n.
+   Si la base de datos está vacía, carga los datos de demostración.
 
    ```sh
    npx sequelize db:seed:all --debug
@@ -33,13 +33,13 @@ API REST desarrollada con Node.js, Express, Sequelize y MySQL para administrar p
    npm start
    ```
 
-   El backend estar� disponible en `http://localhost:3000` y la documentaci�n Swagger en `http://localhost:3000/swagger`.
+   El backend estará disponible en `http://localhost:3000` y la documentación Swagger en `http://localhost:3000/swagger`.
 
-5. Para utilizar la aplicaci�n completa, ejecuta el [frontend](https://github.com/AlexanderM2122/ecommerce-frontend) siguiendo las instrucciones de su README.
+5. Para utilizar la aplicación completa, ejecuta el [frontend](https://github.com/AlexanderM2122/ecommerce-frontend) siguiendo las instrucciones de su README.
 
 ## Seguridad de cuenta
 
-Ejecuta la nueva migraci�n antes de iniciar esta versi�n.
+Ejecuta la nueva migración antes de iniciar esta versión.
 
 ```powershell
 npx --yes sequelize-cli@6 db:migrate
@@ -50,22 +50,22 @@ Guarda el valor generado en `AUTH_TOTP_KEY` y conserva la misma clave entre rein
 
 ### Enviar correo con Gmail
 
-Activa la verificaci�n en dos pasos y genera una contrase�a de aplicaci�n en tu cuenta de Google.
+Activa la verificación en dos pasos y genera una contraseña de aplicación en tu cuenta de Google.
 Agrega estas variables en el `.env` del backend y reinicia la API.
 
 ```dotenv
 AUTH_GMAIL_USER=tu-cuenta@gmail.com
-AUTH_GMAIL_APP_PASSWORD=tu-contrase�a-de-aplicaci�n
+AUTH_GMAIL_APP_PASSWORD=tu-contraseña-de-aplicación
 ```
 
-Gmail tiene prioridad cuando ambas variables est�n configuradas y usa esa cuenta como remitente.
+Gmail tiene prioridad cuando ambas variables están configuradas y usa esa cuenta como remitente.
 
 ### Resend y correo local
 
 Para correo real con Resend, usa
 `RESEND_API_KEY` y `AUTH_MAIL_FROM` con un remitente del dominio verificado en Resend.
 
-Para pruebas con Mailpit, deja las variables de Gmail vac�as e inicia Mailpit. Usa `NODE_ENV=development`, `AUTH_MAILPIT_PORT=8025`
+Para pruebas con Mailpit, deja las variables de Gmail vacías e inicia Mailpit. Usa `NODE_ENV=development`, `AUTH_MAILPIT_PORT=8025`
 y `AUTH_MAIL_FROM=ecommerce@ejemplo.local`. El frontend usa HTTPS en el puerto 7275 con su perfil HTTPS.
 
 ```powershell
@@ -73,19 +73,19 @@ docker run --rm -p 127.0.0.1:8025:8025 axllent/mailpit
 ```
 
 Las cuentas existentes, las creadas por un administrador y las cuentas de prueba deben
-solicitar un c�digo desde la pantalla de verificaci�n antes de iniciar sesi�n. Con Mailpit,
+solicitar un código desde la pantalla de verificación antes de iniciar sesión. Con Mailpit,
 abre http://localhost:8025 para consultar los correos enviados a las cuentas de prueba.
 
-El registro y la recuperaci�n env�an un c�digo de seis d�gitos. Cada c�digo vence en 10 minutos,
-admite cinco intentos y solo puede usarse una vez. El reenv�o est� disponible al cabo de un minuto.
-Tras confirmar el c�digo de recuperaci�n, hay 10 minutos para cambiar la contrase�a.
+El registro y la recuperación envían un código de seis dígitos. Cada código vence en 10 minutos,
+admite cinco intentos y solo puede usarse una vez. El reenvío está disponible al cabo de un minuto.
+Tras confirmar el código de recuperación, hay 10 minutos para cambiar la contraseña.
 
-Una vez autenticado, abre **Seguridad** para vincular una app TOTP. Guarda los c�digos
-de recuperaci�n que se muestran al activar la funci�n. El restablecimiento de contrase�a
+Una vez autenticado, abre **Seguridad** para vincular una app TOTP. Guarda los códigos
+de recuperación que se muestran al activar la función. El restablecimiento de contraseña
 revoca los JWT anteriores y conserva el segundo factor. Si pierdes la app, usa uno de
-tus c�digos de recuperaci�n.
+tus códigos de recuperación.
 
-El l�mite de acceso permite ocho solicitudes por cuenta cada 15 minutos, adem�s de un
-l�mite por IP. Al completar el inicio de sesi�n se reinicia el contador
-de la cuenta. Los l�mites por IP y correo se conservan en memoria por instancia.
+El límite de acceso permite ocho solicitudes por cuenta cada 15 minutos, además de un
+límite por IP. Al completar el inicio de sesión se reinicia el contador
+de la cuenta. Los límites por IP y correo se conservan en memoria por instancia.
 El reto MFA vence en cinco minutos y admite cinco intentos.
